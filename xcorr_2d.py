@@ -23,6 +23,7 @@ other" asks for. Reading it:
     and give a noise-free view of the speckle shape.
 
 Usage: python xcorr_2d.py [--selftest]
+       python -c "import xcorr_2d; xcorr_2d.scan_space_figure()"   # scan-offset slice
 """
 import argparse
 
@@ -32,17 +33,9 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from quicklook import find_frames, process
-from speckle_geometry import SCANS, extent_nm
+from quicklook import load, neighbour_pairs
+from speckle_geometry import GRID, SCANS, STEP_NM, normalised_residuals, residuals, signal_power
 
-try:
-    import hdf5plugin  # noqa: F401  (registers bslz4)
-except ImportError:
-    pass
-import h5py
-
-N_ROWS, N_COLS = 71, 41
-STEP_NM = 20.0
 HALF = 14                 # lag window shown, px
 
 
@@ -56,17 +49,12 @@ def residual_ffts(crops, good):
     for a frame with itself, and directly comparable between the two reflections
     despite their ~17x difference in raw counts.
     """
-    mean_pat = crops.mean(axis=0) * good
-    denom = mean_pat.sum()
-    ny, nx = mean_pat.shape
-    out = np.empty((len(crops), 2 * ny, nx + 1), dtype=np.complex64)
-    S = np.empty(len(crops))
-    for i, f in enumerate(crops):
-        c = f * good
-        r = c - (c.sum() / denom) * mean_pat
-        out[i] = np.fft.rfft2(r, s=(2 * ny, 2 * nx)).astype(np.complex64)
-        S[i] = max((r ** 2).sum() - c.sum(), 1e-9)
-    return out, (ny, nx), S
+    res = residuals(crops, good)
+    ny, nx = crops.shape[1:]
+    F = np.empty((len(res), 2 * ny, nx + 1), dtype=np.complex64)
+    for i, r in enumerate(res):
+        F[i] = np.fft.rfft2(r, s=(2 * ny, 2 * nx))
+    return F, (ny, nx), signal_power(crops, good, res)
 
 
 def mean_xcorr(F, shape, pairs, S=None, half=HALF, good=None):
@@ -87,15 +75,7 @@ def mean_xcorr(F, shape, pairs, S=None, half=HALF, good=None):
     W = np.fft.rfft2(window, s=fft_shape)
     overlap = np.fft.fftshift(np.fft.irfft2(np.abs(W) ** 2, s=fft_shape))
     acc *= window.sum() / np.maximum(overlap, 1)
-    cy, cx = ny, nx
-    return acc[cy - half:cy + half + 1, cx - half:cx + half + 1]
-
-
-def neighbour_pairs(k, axis, n_rows=N_ROWS, n_cols=N_COLS):
-    idx = np.arange(n_rows * n_cols).reshape(n_rows, n_cols)
-    i = idx.take(range(idx.shape[axis] - k), axis=axis).ravel()
-    j = idx.take(range(k, idx.shape[axis]), axis=axis).ravel()
-    return list(zip(i, j))
+    return acc[ny - half:ny + half + 1, nx - half:nx + half + 1]
 
 
 def centroid(c, rad):
@@ -122,24 +102,19 @@ def surface_stats(c, ref_peak):
 
 
 def analyse(path, tag):
-    with h5py.File(path, "r") as f:
-        r = process(find_frames(f), N_ROWS, N_COLS, 64)
-    F, shape, S = residual_ffts(r["crops"], r["roi_good"])
-    surfaces, stats = {}, {}
+    r = load(path, *GRID)
+    good = r["roi_good"]
+    F, shape, S = residual_ffts(r["crops"], good)
     # k = 0: autocorrelation. Its zero lag is 1 + (shot noise)/(signal power), i.e. > 1 -- the
     # noise spike is the ONLY thing there that is not speckle, which is why it gets masked.
-    surfaces[("auto", 0)] = mean_xcorr(
-        F, shape, [(i, i) for i in range(len(F))], S, good=r["roi_good"])
-    half = surfaces[("auto", 0)].shape[0] // 2
+    surfaces = {("auto", 0): mean_xcorr(F, shape, [(i, i) for i in range(len(F))], S, good=good)}
     for axis, name in ((1, "fast"), (0, "slow")):
         for k in (1, 2, 4):
-            surfaces[(name, k)] = mean_xcorr(
-                F, shape, neighbour_pairs(k, axis), S, good=r["roi_good"])
-    for key in list(surfaces):
-        if key[0] != "auto":
-            stats[key] = surface_stats(surfaces[key], 1.0)
+            pairs = list(zip(*neighbour_pairs(*GRID, k, axis)))
+            surfaces[(name, k)] = mean_xcorr(F, shape, pairs, S, good=good)
+    stats = {key: surface_stats(c, 1.0) for key, c in surfaces.items() if key[0] != "auto"}
     print(f"{tag}:")
-    for key in sorted(stats, key=lambda t: (t[0], t[1])):
+    for key in sorted(stats):
         s = stats[key]
         print(f"   {key[0]:4s} k={key[1]} ({key[1] * STEP_NM:3.0f} nm): peak {s['peak']:.3f}  "
               f"centroid +-14px ({s['cx']:+.2f},{s['cy']:+.2f})  "
@@ -189,6 +164,67 @@ def main():
     fig.tight_layout(rect=(0, 0, 1, 0.86), h_pad=3.0)
     fig.savefig("xcorr_2d.png", dpi=140)
     print("wrote xcorr_2d.png")
+
+
+# --- the OTHER 2D slice: correlation vs SCAN offset, at zero detector lag -------------
+# C(0; d_fast, d_slow). The panels above hold the scan offset fixed and show the detector
+# lag plane; this holds the detector lag at zero and shows the SCAN plane, so the
+# decorrelation anisotropy appears directly as an ellipse in real space.
+
+def scan_space_corr(crops, good, max_off=6):
+    """Poisson-corrected speckle correlation for every (d_fast, d_slow) scan offset.
+
+    Done as one Gram matrix of normalised residuals: every frame pair at once, then
+    averaged by scan offset. Cheap enough (2911 x 16k) and exact.
+    """
+    R = normalised_residuals(crops, good)
+    G = R @ R.T
+    n_rows, n_cols = GRID
+    idx = np.arange(len(crops)).reshape(n_rows, n_cols)
+    n = 2 * max_off + 1
+    out = np.full((n, n), np.nan)
+    for si, ds in enumerate(range(-max_off, max_off + 1)):
+        for fi, df in enumerate(range(-max_off, max_off + 1)):
+            r0, r1 = max(0, -ds), min(n_rows, n_rows - ds)
+            c0, c1 = max(0, -df), min(n_cols, n_cols - df)
+            if r1 <= r0 or c1 <= c0:
+                continue
+            a = idx[r0:r1, c0:c1].ravel()
+            b = idx[r0 + ds:r1 + ds, c0 + df:c1 + df].ravel()
+            out[si, fi] = np.median(G[a, b])
+    return out
+
+
+def scan_space_figure():
+    fig, ax = plt.subplots(1, 2, figsize=(11, 5))
+    for col, (path, tag, *_rest) in enumerate(SCANS):
+        r = load(path, *GRID)
+        C = scan_space_corr(r["crops"], r["roi_good"])
+        h = C.shape[0] // 2
+        ext = (-h * STEP_NM, h * STEP_NM, h * STEP_NM, -h * STEP_NM)
+        im = ax[col].imshow(C, cmap="viridis", vmin=0, vmax=1, extent=ext)
+        cs = ax[col].contour(np.linspace(ext[0], ext[1], C.shape[1]),
+                             np.linspace(ext[3], ext[2], C.shape[0]), C,
+                             levels=[0.3, 0.5, 0.7], colors="w", linewidths=0.8)
+        ax[col].clabel(cs, fontsize=7, fmt="%.1f")
+        ax[col].set_title(f"{tag}\nspeckle correlation vs SCAN offset", fontsize=10)
+        ax[col].set_xlabel("fast (zpx) offset [nm]")
+        ax[col].set_ylabel("slow (zpy) offset [nm]")
+        plt.colorbar(im, ax=ax[col], shrink=0.85).set_label("correlation coefficient", fontsize=8)
+        # half-correlation distance along each axis, by linear interpolation
+        for axis, lab in ((1, "fast"), (0, "slow")):
+            prof = C[h, h:] if axis == 1 else C[h:, h]
+            d = np.arange(len(prof)) * STEP_NM
+            below = np.where(prof < 0.5)[0]
+            hw = np.interp(0.5, prof[below[0] - 1:below[0] + 1][::-1],
+                           d[below[0] - 1:below[0] + 1][::-1]) if len(below) else np.nan
+            print(f"{tag} {lab}: correlation falls to 0.5 at {hw:.0f} nm")
+    fig.suptitle("The other 2D slice: C(0; d_fast, d_slow) - detector lag held at zero, SCAN plane shown.\n"
+                 "Decorrelation anisotropy appears directly as an ellipse in real space "
+                 "(elongated along fast = the 1/sin(theta)-stretched footprint direction).", fontsize=10)
+    fig.tight_layout(rect=(0, 0.02, 1, 0.86))
+    fig.savefig("xcorr_scanspace.png", dpi=140)
+    print("wrote xcorr_scanspace.png")
 
 
 def selftest():
@@ -246,71 +282,3 @@ if __name__ == "__main__":
     p.add_argument("--selftest", action="store_true")
     a = p.parse_args()
     selftest() if a.selftest else main()
-
-
-# --- the OTHER 2D slice: correlation vs SCAN offset, at zero detector lag -------------
-# C(0; d_fast, d_slow). The panels above hold the scan offset fixed and show the detector
-# lag plane; this holds the detector lag at zero and shows the SCAN plane, so the
-# decorrelation anisotropy appears directly as an ellipse in real space.
-
-def scan_space_corr(crops, good, max_off=6):
-    """Poisson-corrected speckle correlation for every (d_fast, d_slow) scan offset.
-
-    Done as one Gram matrix of normalised residuals: every frame pair at once, then
-    averaged by scan offset. Cheap enough (2911 x 16k) and exact.
-    """
-    m = good.ravel()
-    mean_pat = crops.mean(axis=0) * good
-    flat_mean = mean_pat.ravel()[m]
-    R = crops.reshape(len(crops), -1)[:, m].astype(np.float32)
-    counts = R.sum(axis=1)
-    R = R - np.outer(counts / flat_mean.sum(), flat_mean)
-    S = np.maximum((R ** 2).sum(axis=1) - counts, 1e-9)
-    R /= np.sqrt(S)[:, None].astype(np.float32)
-    G = R @ R.T
-    idx = np.arange(len(crops)).reshape(N_ROWS, N_COLS)
-    n = 2 * max_off + 1
-    out = np.full((n, n), np.nan)
-    for si, ds in enumerate(range(-max_off, max_off + 1)):
-        for fi, df in enumerate(range(-max_off, max_off + 1)):
-            r0, r1 = max(0, -ds), min(N_ROWS, N_ROWS - ds)
-            c0, c1 = max(0, -df), min(N_COLS, N_COLS - df)
-            if r1 <= r0 or c1 <= c0:
-                continue
-            a = idx[r0:r1, c0:c1].ravel()
-            b = idx[r0 + ds:r1 + ds, c0 + df:c1 + df].ravel()
-            out[si, fi] = np.median(G[a, b])
-    return out
-
-
-def scan_space_figure():
-    fig, ax = plt.subplots(1, 2, figsize=(11, 5))
-    for col, (path, tag, *_rest) in enumerate(SCANS):
-        with h5py.File(path, "r") as f:
-            r = process(find_frames(f), N_ROWS, N_COLS, 64)
-        C = scan_space_corr(r["crops"], r["roi_good"])
-        h = C.shape[0] // 2
-        ext = (-h * STEP_NM, h * STEP_NM, h * STEP_NM, -h * STEP_NM)
-        im = ax[col].imshow(C, cmap="viridis", vmin=0, vmax=1, extent=ext)
-        cs = ax[col].contour(np.linspace(ext[0], ext[1], C.shape[1]),
-                             np.linspace(ext[3], ext[2], C.shape[0]), C,
-                             levels=[0.3, 0.5, 0.7], colors="w", linewidths=0.8)
-        ax[col].clabel(cs, fontsize=7, fmt="%.1f")
-        ax[col].set_title(f"{tag}\nspeckle correlation vs SCAN offset", fontsize=10)
-        ax[col].set_xlabel("fast (zpx) offset [nm]")
-        ax[col].set_ylabel("slow (zpy) offset [nm]")
-        plt.colorbar(im, ax=ax[col], shrink=0.85).set_label("correlation coefficient", fontsize=8)
-        # half-correlation distance along each axis, by linear interpolation
-        for axis, lab in ((1, "fast"), (0, "slow")):
-            prof = C[h, h:] if axis == 1 else C[h:, h]
-            d = np.arange(len(prof)) * STEP_NM
-            below = np.where(prof < 0.5)[0]
-            hw = np.interp(0.5, prof[below[0] - 1:below[0] + 1][::-1],
-                           d[below[0] - 1:below[0] + 1][::-1]) if len(below) else np.nan
-            print(f"{tag} {lab}: correlation falls to 0.5 at {hw:.0f} nm")
-    fig.suptitle("The other 2D slice: C(0; d_fast, d_slow) - detector lag held at zero, SCAN plane shown.\n"
-                 "Decorrelation anisotropy appears directly as an ellipse in real space "
-                 "(elongated along fast = the 1/sin(theta)-stretched footprint direction).", fontsize=10)
-    fig.tight_layout(rect=(0, 0.02, 1, 0.86))
-    fig.savefig("xcorr_scanspace.png", dpi=140)
-    print("wrote xcorr_scanspace.png")

@@ -15,9 +15,12 @@ What this delivers on the shared scans:
      comfortably oversampled, the other is at/below Nyquist, so half the
      available speckle information is currently thrown away by the detector
      distance. That is an acquisition-design number (Plan B), not a fit.
-  2. Two coherent real-space extents, one of them (63 nm) far below the ~150 nm
-     spot size in the metadata -> a concrete question for David about which
-     zone plate / defocus scans 308-319 actually used.
+  2. The illumination's two length scales. The ACF is a SHARP peak on a BROAD
+     pedestal and needs a two-component fit (a single Gaussian lands between the
+     two scales and is the wrong model): the sharp component is the ~158 nm
+     illumination envelope, matching the metadata spot size and the real-space
+     decorrelation length; the broad one is ~50 nm structure inside it, so
+     rung 2 needs multi-mode probes.
   3. The ACF ellipse orientation: the detector-frame anisotropy axis, which the
      rung-2 geometry layer must reproduce.
 
@@ -30,6 +33,7 @@ Shot noise is white -> a delta at zero lag only, excluded from the fit
 (standard speckle/XPCS practice).
 """
 import argparse
+import os
 
 import numpy as np
 import matplotlib
@@ -39,23 +43,20 @@ import matplotlib.pyplot as plt
 from scipy.ndimage import map_coordinates
 from scipy.optimize import curve_fit
 
-from quicklook import find_frames, process
+from quicklook import load, neighbour_pairs
 
-try:
-    import hdf5plugin  # noqa: F401  (registers bslz4)
-except ImportError:
-    pass
-import h5py
-
+# Experiment constants shared by every script (single source; see BRIEFING §6 for status)
 LAMBDA_NM = 0.123984          # 10.0 keV
 PX_M = 75e-6                  # Eiger2 pixel
 DIST_M = 0.5225               # R readback; nominal setting 500 mm (4.5% -> extents, see BRIEFING §6)
+STEP_NM = 20.0                # sample-frame raster step
+GRID = (71, 41)               # raster (rows = slow zpy, cols = fast zpx)
 PIX_ACF_VAR = 1.0 / 6.0       # variance [px^2] of a square pixel's self-ACF (triangle, half-width 1)
 NYQUIST_PX = 2.0              # px per speckle FWHM needed to sample the speckle
-SCRATCH = ("/tmp/claude-1000/-home-ollie-Documents-braggptycho/"
-           "d1fadf69-8f4b-4be7-8be7-40790de56e4a/scratchpad/data")
-SCANS = ((f"{SCRATCH}/scan_309_100309.h5", "(202) scan309", 11.2, 42.2, 23.15),
-         (f"{SCRATCH}/scan_313_100313.h5", "(131) scan313", 18.6, 52.4, 23.15))
+RAW_DIR = os.environ.get("BRAGG_RAW_DIR", "data")  # directory holding the raw scan .h5 files
+# (path, tag, samth = incidence, tth, gamma) [deg], angles from David's scan sheet
+SCANS = ((f"{RAW_DIR}/scan_309_100309.h5", "(202) scan309", 11.2, 42.2, 23.15),
+         (f"{RAW_DIR}/scan_313_100313.h5", "(131) scan313", 18.6, 52.4, 23.15))
 
 
 def dq_per_px(dist_m=DIST_M):
@@ -89,19 +90,46 @@ def exit_projection(samth_deg, tth_deg, gam_deg):
     return np.sin(np.radians(beta)) / np.sin(np.radians(alpha)), two_theta
 
 
-def speckle_acf(crops, good, half=10):
-    """Envelope-subtracted, window-corrected mean speckle autocorrelation.
+def residuals(crops, good):
+    """Envelope-subtracted frames: the speckle alone, flux-matched to the scan mean.
 
     Each frame is scaled onto the mean pattern before subtraction so frame-to-frame
-    flux variation does not leak into the residual.
+    flux variation does not leak into the residual. Bad pixels (good == False) are 0.
     """
     mean_pat = crops.mean(axis=0) * good
     denom = mean_pat.sum()
-    ny, nx = mean_pat.shape
-    acc = np.zeros((2 * ny, 2 * nx))
-    for f in crops:
+    out = np.empty_like(crops)
+    for i, f in enumerate(crops):
         r = f * good
-        r = r - (r.sum() / denom) * mean_pat
+        out[i] = r - (r.sum() / denom) * mean_pat
+    return out
+
+
+def signal_power(crops, good, res):
+    """Per-frame speckle power with shot noise removed: S_i = sum(r_i^2) - counts_i.
+
+    Poisson noise adds variance equal to the counts, so S_i is the true speckle
+    power and sqrt(S_i S_j) turns a cross term into a correlation coefficient.
+    """
+    return np.array([max((r ** 2).sum() - (f * good).sum(), 1e-9) for f, r in zip(crops, res)],
+                    dtype=float)
+
+
+def normalised_residuals(crops, good):
+    """Good-pixel residuals, one row per frame, scaled to unit signal power.
+
+    The dot product of two rows is their shot-noise-corrected correlation coefficient.
+    """
+    res = residuals(crops, good)
+    S = signal_power(crops, good, res)
+    return res.reshape(len(res), -1)[:, good.ravel()].astype(np.float64) / np.sqrt(S)[:, None]
+
+
+def speckle_acf(crops, good, half=10):
+    """Window-corrected mean autocorrelation of the speckle residuals."""
+    ny, nx = crops.shape[1:]
+    acc = np.zeros((2 * ny, 2 * nx))
+    for r in residuals(crops, good):
         F = np.fft.rfft2(r, s=(2 * ny, 2 * nx))
         acc += np.fft.irfft2(np.abs(F) ** 2, s=(2 * ny, 2 * nx))
     W = np.fft.rfft2(good.astype(float), s=(2 * ny, 2 * nx))
@@ -110,40 +138,44 @@ def speckle_acf(crops, good, half=10):
     return acf[ny - half:ny + half + 1, nx - half:nx + half + 1] / len(crops)
 
 
-def speckle_decorrelation(crops, good, n_rows, n_cols, step_nm=20.0, max_off=4):
+def speckle_decorrelation(crops, good, n_rows, n_cols, step_nm=STEP_NM, max_off=4):
     """Illuminated-footprint FWHM [nm] per scan axis, from how fast speckle decorrelates.
 
-    Uses the SAME envelope-subtracted residuals as speckle_acf, with the Poisson
-    variance removed from the normalisation, so this and the ACF measure two
-    different things on identical footing:
-      - ACF width      -> the COHERENTLY scattering extent (one mode / one domain)
-      - decorrelation  -> the ILLUMINATED extent (moving the probe swaps material)
-    For Gaussian illumination of intensity-FWHM w, r(delta) = exp(-delta^2/(4 sigma_I^2)),
-    sigma_I = w/2.3548. Their ratio counts coherent modes (or coherently
-    diffracting domains) across the footprint.
+    Moving the probe swaps the illuminated material, so the correlation of
+    residuals delta apart falls off with the illumination size: for Gaussian
+    illumination of intensity-FWHM w, r(delta) = exp(-delta^2/(4 sigma_I^2)),
+    sigma_I = w/2.3548. Same residuals and Poisson correction as the ACF, so this is
+    an independent real-space check on the ACF envelope component.
     """
-    mean_pat = crops.mean(axis=0) * good
-    m = good.ravel()
-    res = (crops * good).reshape(len(crops), -1)[:, m].astype(np.float64)
-    flat_mean = mean_pat.ravel()[m]
-    res -= (res.sum(axis=1, keepdims=True) / flat_mean.sum()) * flat_mean
-    counts = (crops.reshape(len(crops), -1)[:, m]).mean(axis=1)   # Poisson variance per px
-    var = (res ** 2).mean(axis=1) - counts
-    idx = np.arange(len(crops)).reshape(n_rows, n_cols)
+    R = normalised_residuals(crops, good)
+    d = step_nm * np.arange(1, max_off + 1)
     out = {}
     for axis, tag in ((1, "fast"), (0, "slow")):
-        deltas, rs = [], []
-        for k in range(1, max_off + 1):
-            i = idx.take(range(idx.shape[axis] - k), axis=axis).ravel()
-            j = idx.take(range(k, idx.shape[axis]), axis=axis).ravel()
-            cov = (res[i] * res[j]).mean(axis=1)
-            r = np.median(cov / np.sqrt(np.maximum(var[i] * var[j], 1e-12)))
-            deltas.append(k * step_nm)
-            rs.append(min(max(r, 1e-6), 0.999999))
-        d, r = np.array(deltas), np.array(rs)
+        r = np.array([np.median((R[i] * R[j]).sum(axis=1))
+                      for i, j in (neighbour_pairs(n_rows, n_cols, k, axis)
+                                   for k in range(1, max_off + 1))])
+        r = np.clip(r, 1e-6, 0.999999)
         sig = np.median(d / (2 * np.sqrt(-np.log(r))))  # r = exp(-d^2 / 4 sigma^2)
         out[tag] = dict(w_nm=2.3548 * sig, r=r)
     return out
+
+
+def _deconv(s):
+    """Remove the square-pixel self-correlation from an ACF sigma [px]."""
+    return np.sqrt(max(s ** 2 - PIX_ACF_VAR, 1e-4))
+
+
+def _wrap_deg(theta):
+    """Ellipse angle [rad] -> degrees in [-90, 90)."""
+    return np.degrees((theta + np.pi / 2) % np.pi - np.pi / 2)
+
+
+def _lag_samples(acf, max_lag):
+    """((x, y), values) of the ACF within +-max_lag px, zero-lag shot-noise spike excluded."""
+    half = acf.shape[0] // 2
+    y, x = np.mgrid[-half:half + 1, -half:half + 1]
+    sel = (np.abs(x) <= max_lag) & (np.abs(y) <= max_lag) & ~((x == 0) & (y == 0))
+    return (x[sel].astype(float), y[sel].astype(float)), acf[sel]
 
 
 def _gauss2d(coords, amp, sa, sb, theta, base):
@@ -159,30 +191,25 @@ def fit_acf(acf, max_lag=6):
     Returns sigmas along the ellipse axes, broad first; `sig_*_true` have the
     square-pixel self-correlation deconvolved (sigma^2 - 1/6).
     """
+    c, v = _lag_samples(acf, max_lag)
     half = acf.shape[0] // 2
-    y, x = np.mgrid[-half:half + 1, -half:half + 1]
-    sel = (np.abs(x) <= max_lag) & (np.abs(y) <= max_lag) & ~((x == 0) & (y == 0))
+    peak = acf[half, half]
     p, _ = curve_fit(
-        _gauss2d, (x[sel].ravel(), y[sel].ravel()), acf[sel].ravel(),
-        p0=[acf[half, half], 3.0, 1.0, 0.8, 0.0],
+        _gauss2d, c, v, p0=[peak, 3.0, 1.0, 0.8, 0.0],
         bounds=([0, 0.15, 0.15, -np.pi / 2, -np.inf], [np.inf, 20, 20, np.pi / 2, np.inf]),
         maxfev=40000)
     amp, sa, sb, theta, base = p
     if sb > sa:  # broad ACF axis first (== the SMALLER real-space extent)
         sa, sb, theta = sb, sa, theta + np.pi / 2
-    deconv = lambda s: np.sqrt(max(s ** 2 - PIX_ACF_VAR, 1e-4))
-    return dict(amp=amp, base=base, acf0=acf[half, half], theta=theta,
+    return dict(amp=amp, base=base, acf0=peak, theta=theta,
                 sig_broad=sa, sig_narrow=sb,
-                sig_broad_true=deconv(sa), sig_narrow_true=deconv(sb),
-                theta_deg=np.degrees((theta + np.pi / 2) % np.pi - np.pi / 2))
+                sig_broad_true=_deconv(sa), sig_narrow_true=_deconv(sb),
+                theta_deg=_wrap_deg(theta))
 
 
 def _gauss2d_pair(coords, a1, sa1, sb1, a2, sa2, sb2, theta, base):
-    x, y = coords
-    xr = x * np.cos(theta) + y * np.sin(theta)
-    yr = -x * np.sin(theta) + y * np.cos(theta)
-    return (a1 * np.exp(-0.5 * ((xr / sa1) ** 2 + (yr / sb1) ** 2))
-            + a2 * np.exp(-0.5 * ((xr / sa2) ** 2 + (yr / sb2) ** 2)) + base)
+    return (_gauss2d(coords, a1, sa1, sb1, theta, 0.0)
+            + _gauss2d(coords, a2, sa2, sb2, theta, 0.0) + base)
 
 
 def fit_acf2(acf, max_lag=8):
@@ -196,10 +223,8 @@ def fit_acf2(acf, max_lag=8):
 
     Returned sigmas are pixel-binning-deconvolved; 'env' is the sharp component.
     """
+    c, v = _lag_samples(acf, max_lag)
     half = acf.shape[0] // 2
-    y, x = np.mgrid[-half:half + 1, -half:half + 1]
-    sel = (np.abs(x) <= max_lag) & (np.abs(y) <= max_lag) & ~((x == 0) & (y == 0))
-    c, v = (x[sel].ravel().astype(float), y[sel].ravel().astype(float)), acf[sel].ravel()
     peak = acf[half, half]
     p, _ = curve_fit(_gauss2d_pair, c, v,
                      p0=[peak * 0.4, 1.5, 0.6, peak * 0.6, 4.5, 0.6, 0.8, 0.0],
@@ -209,12 +234,11 @@ def fit_acf2(acf, max_lag=8):
     a1, sa1, sb1, a2, sa2, sb2, theta, base = p
     comps = sorted(((sa1, sb1, a1), (sa2, sb2, a2)))  # smaller broad-axis sigma == sharper == envelope
     rms = float(np.sqrt(np.mean((v - _gauss2d_pair(c, *p)) ** 2)))
-    deconv = lambda s: np.sqrt(max(s ** 2 - PIX_ACF_VAR, 1e-4))
-    out = dict(theta=theta, theta_deg=np.degrees((theta + np.pi / 2) % np.pi - np.pi / 2),
+    out = dict(theta=theta, theta_deg=_wrap_deg(theta),
                base=base, acf0=peak, rms=rms, total_amp=a1 + a2)
     for name, (sa, sb, amp) in zip(("env", "fine"), comps):
         out[name] = dict(sig_a=sa, sig_b=sb, amp=amp, weight=amp / (a1 + a2),
-                         ext_a=extent_nm(deconv(sa)), ext_b=extent_nm(deconv(sb)),
+                         ext_a=extent_nm(_deconv(sa)), ext_b=extent_nm(_deconv(sb)),
                          fwhm_a=2.3548 * sa, fwhm_b=2.3548 * sb)
     return out
 
@@ -239,12 +263,11 @@ def axis_profile(acf, theta, n=49, rmax=12.0, swidth=3.0):
 
 
 def analyse(path, tag, samth, tth, gam):
-    with h5py.File(path, "r") as f:
-        r = process(find_frames(f), 71, 41, 64)
+    r = load(path, *GRID)
     acf = speckle_acf(r["crops"], r["roi_good"], half=14)
     fit1 = fit_acf(acf)
     fit = fit_acf2(acf)
-    dec = speckle_decorrelation(r["crops"], r["roi_good"], 71, 41)
+    dec = speckle_decorrelation(r["crops"], r["roi_good"], *GRID)
     env, fine = fit["env"], fit["fine"]
     # sampling is set by the FINE component: it is the widest thing in the ACF, so if IT is
     # unresolved the detector is throwing information away
@@ -270,12 +293,11 @@ def analyse(path, tag, samth, tth, gam):
     print(f"   geometry: 2theta={two_theta:.1f} deg, incidence {samth:.1f} / exit "
           f"{two_theta - samth:.1f} deg -> aperture factor sin(exit)/sin(inc) = {proj:.2f} "
           f"(NOT 1/sin(inc) = {1 / np.sin(np.radians(samth)):.2f})")
-    geom = (150.0 / np.sin(np.radians(samth)), 150.0)  # metadata spot / sin(incidence) on the surface
     print(f"   speckle decorrelation length: fast {dec['fast']['w_nm']:.0f} nm, "
           f"slow {dec['slow']['w_nm']:.0f} nm  (r/step {dec['fast']['r'][0]:.3f}/{dec['slow']['r'][0]:.3f}) "
           f"-- independent real-space check on the envelope scale")
-    return acf, fit, fit1, dict(fwhm=fwhm, ext=ext, proj=proj, two_theta=two_theta, samth=samth,
-                                fov=fov, osr=osr, dec=dec, geom=geom, env=env, fine=fine)
+    return acf, fit, fit1, dict(fwhm=fwhm, ext=ext, proj=proj, two_theta=two_theta,
+                                fov=fov, osr=osr, dec=dec, env=env, fine=fine)
 
 
 def main():
@@ -298,7 +320,7 @@ def main():
         t, prof = axis_profile(acf, fit["theta"], rmax=12.0, swidth=SW)
         keep = np.abs(t) >= 1.0
         # cross-ridge integral of a 2D Gaussian component == sqrt(2 pi) sigma_perp * 1D Gaussian
-        wgt = lambda sb: np.sqrt(2 * np.pi) * sb * min(1.0, 1.0)
+        wgt = lambda sb: np.sqrt(2 * np.pi) * sb
         norm = sum(fit[k]["amp"] * wgt(fit[k]["sig_b"]) for k in ("env", "fine"))
         base_line = fit["base"] * 2 * SW
         ax[row, 1].plot(t[keep], (prof[keep] - base_line) / norm, "o", ms=3.5, color="k",

@@ -18,10 +18,7 @@ import sys
 
 import numpy as np
 
-try:
-    import hdf5plugin  # noqa: F401  (registers LZ4/bslz4 codecs used by detector files)
-except ImportError:
-    pass
+import hdf5plugin  # noqa: F401  (registers the bslz4 codec the detector files need)
 import h5py
 import matplotlib
 
@@ -131,6 +128,20 @@ def process(frames, n_rows, n_cols, roi_half):
     )
 
 
+def load(path, n_rows, n_cols, roi_half=64):
+    """process() the frame stack of an h5 scan file on a known grid."""
+    with h5py.File(path, "r") as f:
+        return process(find_frames(f), n_rows, n_cols, roi_half)
+
+
+def neighbour_pairs(n_rows, n_cols, k, axis):
+    """Frame indices (i, j) of every pair k steps apart along `axis` (1 = fast, 0 = slow)."""
+    idx = np.arange(n_rows * n_cols).reshape(n_rows, n_cols)
+    i = idx.take(range(idx.shape[axis] - k), axis=axis).ravel()
+    j = idx.take(range(k, idx.shape[axis]), axis=axis).ravel()
+    return i, j
+
+
 def pearson_maps(crops, n_rows, n_cols, max_offset=8, good=None):
     """Adjacent-pattern Pearson correlation along fast (x) and slow (y) axes.
 
@@ -164,9 +175,7 @@ def pearson_maps(crops, n_rows, n_cols, max_offset=8, good=None):
     for axis, tag in ((1, "x"), (0, "y")):
         raw, cor = [], []
         for k in range(1, max_offset + 1):
-            i = idx.take(range(idx.shape[axis] - k), axis=axis).ravel()
-            j = idx.take(range(k, idx.shape[axis]), axis=axis).ravel()
-            r, c = pair(i, j)
+            r, c = pair(*neighbour_pairs(n_rows, n_cols, k, axis))
             raw.append(np.median(r))
             cor.append(np.median(c))
         out["decay_" + tag] = np.array(raw)

@@ -16,7 +16,7 @@ sub-pixel refinement is pinned to integer lags. The exception proves it --
 the one component aligned with the BROAD speckle axis is unbiased (14.6%).
 
 So the failure is the direct consequence of the speckle undersampling measured
-in speckle_geometry.py (1.3-1.7 px FWHM, below the 2 px Nyquist floor), and it
+in speckle_geometry.py (1.4-1.7 px FWHM, below the 2 px Nyquist floor), and it
 converts that abstract sampling number into a concrete cost: an entire analysis
 modality is unavailable at this detector distance. Move the detector back (or
 use more symmetric reflections) and this becomes a working measurement -- it is
@@ -47,29 +47,11 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from quicklook import find_frames, process
-from speckle_geometry import SCANS
+from quicklook import load
+from speckle_geometry import GRID, SCANS, residuals
 
-try:
-    import hdf5plugin  # noqa: F401  (registers bslz4)
-except ImportError:
-    pass
-import h5py
-
-N_ROWS, N_COLS = 71, 41
 LOCK_TOL = 0.05          # |shift - nearest integer| counted as "locked"
 LOCK_UNIFORM = 2 * LOCK_TOL  # unbiased expectation for that fraction
-
-
-def residuals(crops, good):
-    """Envelope-subtracted frames: the speckle alone, flux-matched to the scan mean."""
-    mean_pat = crops.mean(axis=0) * good
-    denom = mean_pat.sum()
-    out = np.empty_like(crops)
-    for i, f in enumerate(crops):
-        r = f * good
-        out[i] = r - (r.sum() / denom) * mean_pat
-    return out
 
 
 def xcorr_shift(a, b, max_lag=6):
@@ -96,7 +78,7 @@ def xcorr_shift(a, b, max_lag=6):
     return dy, dx, c[iy, ix]
 
 
-def track(res, n_rows=N_ROWS, n_cols=N_COLS, max_lag=6):
+def track(res, n_rows=GRID[0], n_cols=GRID[1], max_lag=6):
     """Speckle shift to the next frame along each scan axis -- the '4 numbers per image'."""
     idx = np.arange(len(res)).reshape(n_rows, n_cols)
     out = {k: np.full((n_rows, n_cols), np.nan) for k in
@@ -123,8 +105,7 @@ def lock_fraction(v):
 
 
 def analyse(path, tag):
-    with h5py.File(path, "r") as f:
-        r = process(find_frames(f), N_ROWS, N_COLS, 64)
+    r = load(path, *GRID)
     sh = track(residuals(r["crops"], r["roi_good"]))
     locks = {k: lock_fraction(v) for k, v in sh.items()}
     # increment-vs-increment consistency (no integration, so no random-walk build-up)

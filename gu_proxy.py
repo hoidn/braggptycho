@@ -23,10 +23,11 @@ import matplotlib.pyplot as plt
 from scipy.fft import dctn, idctn
 from scipy.ndimage import gaussian_filter
 
-PX_RAD = 75e-6 / 0.5225          # detector angular pixel [rad]; R readback 522.5 = nominal "500 mm"
-                                 # + ~22.8 mm offset -- true distance 500 vs 522.5 pending David (4.5% on pm scale)
-K = 2 * np.pi / 1.23984          # 10.0 keV [1/A]
-STEP_A = 200.0                   # 20 nm sample-frame step [A]
+from speckle_geometry import DIST_M, LAMBDA_NM, PX_M, STEP_NM
+
+PX_RAD = PX_M / DIST_M           # detector angular pixel [rad] (DIST_M pending David: 4.5% on pm scale)
+K = 2 * np.pi / (10 * LAMBDA_NM)  # [1/A]
+STEP_A = 10 * STEP_NM            # sample-frame step [A]
 RAD_PER_PX_STEP = K * PX_RAD * STEP_A  # phase gradient [rad/step] per COM px
 G_HKL = {"202": 2 * np.pi / 1.55210, "131": 2 * np.pi / 1.32365}  # [1/A], a=4.39
 
