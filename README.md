@@ -16,7 +16,7 @@ There are two real scans, both from a 10 nm film:
 | `analysis/` | The analysis scripts (table below). |
 | `figures/` | Every figure the scripts write. |
 | `data/` | Reduced maps and quicklooks for each scan, the synthetic selftest scan, and the raw h5 files (not in git). |
-| `docs/` | [`BRIEFING.md`](docs/BRIEFING.md): science context, verified geometry (E ≈ 10 keV, Eiger2 75 µm pixels, R = 522.5 mm) and findings. [`SESSION_LOG_2026-08-20.md`](docs/SESSION_LOG_2026-08-20.md): how the analysis was done. [`ctx.md`](docs/ctx.md): meeting notes and the collaborator's data email. |
+| `docs/` | [`BRIEFING.md`](docs/BRIEFING.md): science context, verified geometry (E ≈ 10 keV, Eiger2 75 µm pixels, R = 522.5 mm) and findings. [`SESSION_LOG_2026-08-20.md`](docs/SESSION_LOG_2026-08-20.md): how the analysis was done. `ctx.md` (meeting notes and the collaborator's data email) is kept locally and not tracked. |
 
 ## Key figures
 
