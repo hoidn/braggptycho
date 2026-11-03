@@ -11,6 +11,18 @@ There are two real scans, both from a 10 nm film:
 
 `BRIEFING.md` has the science context, the verified geometry (E ≈ 10 keV, Eiger2 75 µm pixels, R = 522.5 mm) and the findings. `SESSION_LOG_2026-08-20.md` records how the analysis was done.
 
+## Key figures
+
+**Speckle cross-correlation vs detector lag** (`xcorr_2d.py`). k = 0 is the autocorrelation. For k ≥ 1, each surface correlates a frame with the frame k scan steps away. The peak height gives the decorrelation, the width and shape give the coherently lit extent, and the centroid gives any systematic speckle translation.
+
+![xcorr_2d](xcorr_2d.png)
+
+**Speckle correlation vs scan offset, at zero detector lag** (`xcorr_2d.scan_space_figure()`). The decorrelation anisotropy appears as an ellipse in real space.
+
+![xcorr_scanspace](xcorr_scanspace.png)
+
+Other figures: [twin comparison](twin_comparison.png) · [speckle geometry](speckle_geometry.png) · [speckle tracking](speckle_tracking.png) · [G·u phase proxy](gu_proxy.png) · [photon budget](photon_budget.png) · [rocking-curve Fisher information](fisher_rocking.png) · quicklooks for [scan309](data/scan_309_100309_quicklook.png) and [scan313](data/scan_313_100313_quicklook.png) · [synthetic selftest scan](synthetic_scan_quicklook.png)
+
 ## Data
 
 - **Raw `.h5` files (about 700 MB each) are not in the repo.** They came from a collaborator's share. Each file holds one detector frame per scan point in `/entry/data/data`, compressed with bitshuffle/LZ4, so `hdf5plugin` is required.
