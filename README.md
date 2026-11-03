@@ -25,10 +25,9 @@ Other figures: [twin comparison](twin_comparison.png) · [speckle geometry](spec
 
 ## Data
 
-- **Raw `.h5` files (about 700 MB each) are not in the repo.** They came from a collaborator's share. Each file holds one detector frame per scan point in `/entry/data/data`, compressed with bitshuffle/LZ4, so `hdf5plugin` is required.
+- **Raw `.h5` files (about 700 MB each) are not in the repo.** Each file holds one detector frame per scan point in `/entry/data/data`, compressed with bitshuffle/LZ4, so `hdf5plugin` is required.
 - **`data/*_maps.npz`** are the reduced maps that `quicklook.py` wrote with default flags. The scripts that read only these maps run without the raw files.
 - **`synthetic_scan.h5`** is the synthetic twin-domain scan written by `python quicklook.py --selftest`.
-- **Not in the repo:** the collaborator's meeting screenshots (`screenshots/`, which `BRIEFING.md` refers to) and the share links to data and notebooks, which are omitted from `ctx.md`. Both are kept locally only.
 
 ## Scripts
 
