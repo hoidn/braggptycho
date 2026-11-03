@@ -133,7 +133,7 @@ phase is biased by the dynamically-diffracting substrate under an epitaxial film
 **Kandel Opt. Express 32, 19594 (2024)** citation for multi-peak BPP, and **Porter JAC 2026** (newest
 robust multi-peak coupling).
 
-**Positioning insight (now a §7 novelty hook):** his corpus has *every* ingredient — nanofocused BPP on
+**Positioning insight (now in §7):** his corpus has *every* ingredient — nanofocused BPP on
 thin films, phase→displacement, defect/stacking-fault phasing, angular-registration recovery, multi-peak
 vector imaging — but **no NbN or superconducting-film paper**. This project would be his program's first
 entry into superconducting quantum-device materials: a clean novelty argument for the proposal.
@@ -148,7 +148,7 @@ entry into superconducting quantum-device materials: a clean novelty argument fo
    approach) + **Fisher-information acquisition** (optimal rocking offset Δ* = σ√2 off-peak).
 4. **Multi-peak fusion** — deferred to the next beamtime (needs matched-raster multi-angle scans).
 
-## 8. Open questions / asks for David (unblock Friday)
+## 8. Open questions / asks for David
 
 - **Scan positions / master file** (per-frame ZPX/ZPY) — blocks any reconstruction.
 - **Pixel size + beam center** — absent from the shared files.
@@ -179,7 +179,7 @@ notebooks (scan sheet CSV + log doc, in the first session's scratchpad). Outcome
   (subtract Poisson variance = per-frame mean from the normalization) sends both reflections to the
   same underlying correlation — (202) 0.998 fast/0.987 slow, (131) 0.999/0.983 vs raw 0.90/0.89 and
   0.66/0.65 — with raw values predicted to ~1% by the signal-variance fraction. Now computed by
-  `pearson_maps()` (`corrc_*`, `decayc_*` in the npz) and shown as the money panel.
+  `pearson_maps()` (`corrc_*`, `decayc_*` in the npz) and shown in the twin-comparison figure.
 
 **Corrected (previous claims wrong or overstated)**
 - **The "~5.15× sample-frame x-pitch anisotropy" was most likely backwards.** The beamline macros in
@@ -228,7 +228,7 @@ notebooks (scan sheet CSV + log doc, in the first session's scratchpad). Outcome
   diffuse-scattering analysis exists — our real-space maps extend his narrative, not replace it.
 - **Confirmed details:** 0.5 s/frame exposure; detector `s26_eiger2_cnm` (Eiger2 → 75 µm px);
   detector distance still ambiguous (522.5 vs 395/400/500 mm notes) — kept as ask.
-- New idea logged (optional, not Friday-critical): per-frame speckle-orientation (structure-tensor)
+- New idea logged (optional): per-frame speckle-orientation (structure-tensor)
   map of the in-peak streak texture = local fault-plane orientation — the PI's literal "rotate so the
   lines are parallel" idea; no beamline tool does it.
 
@@ -252,7 +252,7 @@ With positions soft-unblocked, rung 1 (COM → integrate → G·u) became execut
   speckle-realization noise; each reflection sees only its own twin, so COM in the other twin's
   domains is dark-region noise; piecewise tilt fields carry curl on domain walls — all three push
   against scalar-phase (DPC) shortcuts and toward phasing. BRIEFING §4 rung 1 rewritten accordingly.
-- Not built (deliberately): actual rung-2 reconstruction attempt (failure-risk before Friday) and the
+- Not built (deliberately): actual rung-2 reconstruction attempt (high failure risk at this stage) and the
   structure-tensor orientation map (twist map fills the new-modality slot; orientation map stays
   queued). Scans 308/312 (40 nm-step twins, in David's OneDrive links) would add a second step-size
   point to the correlation-vs-overlap information story — optional future pull.
@@ -266,7 +266,7 @@ speckle autocorrelation measures the illuminated geometry from the data itself. 
 known 160/520 nm anisotropic probe is recovered as 159/522 nm.
 
 **Results**
-- **Detector sampling (headline, interpretation-independent):** speckle FWHM 8.5 px on one axis,
+- **Detector sampling (interpretation-independent):** speckle FWHM 8.5 px on one axis,
   1.4–1.7 px on the other — below the 2 px Nyquist floor. Ptychographic oversampling (FOV = λR/px =
   864 nm) is 13.5× vs 1.6× ((202)) / 2.2× ((131)). Actions: probe-support constraint at rung 2, free
   4–6× binning of the oversampled axis, detector further back next beamtime.

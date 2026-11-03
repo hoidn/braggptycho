@@ -19,8 +19,7 @@ So the failure is the direct consequence of the speckle undersampling measured
 in speckle_geometry.py (1.4-1.7 px FWHM, below the 2 px Nyquist floor), and it
 converts that abstract sampling number into a concrete cost: an entire analysis
 modality is unavailable at this detector distance. Move the detector back (or
-use more symmetric reflections) and this becomes a working measurement -- it is
-the strongest argument for the acquisition change, and a next-beamtime ask.
+use more symmetric reflections) and this becomes a working measurement.
 
 Corroborating checks, all negative in a consistent way:
   - shift increments do not correlate with COM increments (|r| < 0.08, all

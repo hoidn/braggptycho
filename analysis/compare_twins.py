@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Meeting figure: (202) vs (131) twin reflections, reconstruction-free maps.
+"""(202) vs (131) twin reflections, reconstruction-free maps.
 
 Reads the *_maps.npz written by quicklook.py (default flags) for scans 309
 (202) and 313 (131) and renders a 2x4 comparison: integrated intensity,
 peak COM, raw adjacent-frame speckle correlation, and Poisson-noise-corrected
-correlation. The right-hand pair is the headline: raw correlation differs
+correlation. The right-hand pair carries the result: raw correlation differs
 (0.89 vs 0.65) but the corrected maps agree (~0.98-0.99), so the contrast is
 photon statistics, not structure.
 """

@@ -1,12 +1,12 @@
-# NbN Bragg-nanodiffraction collaboration — analysis & meeting plan
+# NbN Bragg-nanodiffraction collaboration — analysis & plan
 
-**Prepared 2026-08-20, adversarially reviewed + revised same day (for the Friday biweekly).**
+**Prepared 2026-08-20; reviewed and revised the same day.**
 Working files in this repo: `quicklook.py` (tested pipeline, `--selftest` passes),
-`compare_twins.py` → `twin_comparison.png` (meeting figure), `fisher_rocking.py` /
+`compare_twins.py` → `twin_comparison.png`, `fisher_rocking.py` /
 `photon_budget.py` → the two Plan-B seed figures, reduced maps in `data/*_maps.npz`
 (regenerated with default flags — quoted numbers reproduce). Two real files pulled from
 David's OneDrive: `scan_309` = NbN (202), `scan_313` = NbN (131), 10 nm film; raw `.h5`
-(~700 MB each) live in scratchpad only. David's experiment notebooks (scan sheet + log)
+(~700 MB each) are not in the repo. David's experiment notebooks (scan sheet + log)
 were also retrieved and are now the source for the verified geometry below.
 
 ---
@@ -23,8 +23,8 @@ mosaicity"), locking to a clean 180° by 40 nm while a monoclinic distortion gro
 ordering in the 6 nm film, few-hundred-nm stripe domains by 12 nm, and ordered-defect
 ("kaleidoscopic") diffuse scattering — stacking-fault rods, partial dislocations — in the 40 nm film.
 He presents this as strain accumulating in twinned domains, then relieving into defects past the
-critical thickness. Our nanoprobe job is the real-space, spatially-resolved version of that story —
-don't re-explain his ensemble narrative at the meeting; build on it.
+critical thickness. The nanoprobe work is the real-space, spatially resolved version of that story and
+builds on his ensemble picture.
 
 **Why it matters.** These are exactly the defects that set Tc, order-parameter uniformity, and device
 yield in the two live NbN technologies — SNSPDs (5-10 nm films, i.e. this thickness window) and
@@ -32,14 +32,14 @@ all-nitride superconducting qubits. The field currently treats "disorder" as a s
 resistance); nobody has spatially mapped the twin/strain/fault populations on the as-grown film at the
 relevant length scale. That is the scientific opening.
 
-**What each collaborator wants (so "progress" reads differently to each):**
+**What each collaborator wants:**
 - **David (grower):** the data gets looked at and shows recognizable structure vs thickness.
 - **Senior PI:** his "4 numbers per image" correlation-map idea, tried on real data — does a
   reconstruction-free map resemble real space?
 - **ANL Bragg-ptychography experts ("Steve" is very plausibly Stephan Hruszkewycz):** the
   reconstruction path is unblocked; eventually a displacement field u(r) reconciling the peaks.
-- **You (Oliver):** the ML/algorithm angle — PtychoPINN and the Fisher-information framing you raised —
-  stays alive and becomes a distinct contribution, not just service work.
+- **Oliver (ML/algorithms):** PtychoPINN and the Fisher-information framing as a distinct
+  contribution.
 
 ## 2. The measurement, and why it's a hard imaging problem
 
@@ -87,7 +87,7 @@ Hard X-ray nanoprobe at APS 26-ID, zone-plate raster (sample fixed). The essenti
   item (fiducial-registered, ≤2 peaks per region's dose budget); twin+specular per-pixel work and
   multi-angle separation need only a Globus pull.
 
-## 3. What I found in the real data (already done)
+## 3. Results on the real data
 
 Ran a first-look pipeline on both shared files. Key results and data-reduction facts:
 
@@ -99,8 +99,8 @@ Ran a first-look pipeline on both shared files. Key results and data-reduction f
 - **No per-frame positions in the shared files** (`/entry/scan` is empty — David's email describes
   `Positioner/ZPX,ZPY` arrays that these exports don't contain). This is now a **soft** blocker for
   reconstruction, not a hard one: with the sinθ convention confirmed (§2), the scan center (CSV: zpx
-  −0.239, zpy stepped per scan), 71×41 points, and 20 nm pitch, a **nominal position grid is
-  constructible today**, and joint position refinement (Calvo-Almazán 2019) absorbs the residual. The
+  −0.239, zpy stepped per scan), 71×41 points, and 20 nm pitch, a **nominal position grid can be
+  built from the scan sheet**, and joint position refinement (Calvo-Almazán 2019) absorbs the residual. The
   exact ranges sit in the beamline **Diffraction User Data Explorer** table (per-scan M1/M2
   MIN/MAX/NP — visible in David's notebook screenshots) → ask him to screenshot rows 308–313, easier
   than a master file. Still need **detector pixel size and beam center** (the explorer names the
@@ -131,20 +131,18 @@ Ran a first-look pipeline on both shared files. Key results and data-reduction f
   (std/med 6.5%) organized in diagonal few-hundred-nm bands, plus its own tilt/strain domains. Raw
   speckle correlation 0.66/0.65. **Attribution:** the stripe morphology itself is David's prior
   observation — his fly maps of this film (scan 289 "is this real?? yes it's real", 305–307, and the
-  zoomed variants) already show the stripe domains at larger FOV. Present our intensity map as a
-  *cross-validation* ("the 20 nm step scan reproduces your stripe morphology"), and the genuinely new
-  contributions as: the **COM tilt/strain domain maps**, the **quantified modulation statistics**, and
-  the corrected-correlation result below.
-- **Headline (new): the correlation contrast is *pure photon statistics* — proven, not asserted.**
+  zoomed variants) already show the stripe domains at larger FOV. Our 20 nm step scan cross-validates that
+  morphology; the new contributions are the **COM tilt/strain domain maps**, the **quantified
+  modulation statistics**, and the corrected-correlation result below.
+- **The correlation contrast is *pure photon statistics*.**
   Correcting the Pearson normalization for shot noise (Poisson noise variance = per-frame mean, so
   r_corr = cov/√((var−mean)(var−mean))) sends **both** reflections to the *same* underlying structural
   correlation: (202) 0.998 fast / 0.987 slow, (131) 0.999 / 0.983. The raw values are reproduced to
   ~1% by r_true × signal-variance-fraction (0.90 and 0.66 predicted from 14 vs 3.4 ph/px). Same
-  structural continuity in both twins; the *information per frame* differs — which is exactly the
-  information-per-photon framing that motivates Plan B, demonstrated on the group's own idea. (The
-  shot-noise correction itself is standard practice from XPCS/speckle-visibility normalization — say
-  so; the point is its use to separate structure from photon starvation across twin reflections, not
-  the formula.)
+  structural continuity in both twins; the *information per frame* differs, which is the
+  information-per-photon framing behind Plan B. (The shot-noise correction itself is standard
+  XPCS/speckle-visibility practice; what is new is using it to separate structure from photon
+  starvation across twin reflections.)
 
 **Speckle geometry — the probe and the acquisition, measured from the data**
 (`speckle_geometry.py` → `speckle_geometry.png`; inversion validated on synthetic speckle to <1%):
@@ -153,9 +151,9 @@ measures lengths David is still waiting on from the beamline.
 - **The detector spends its pixels very unevenly — an acquisition-design result.** Speckle is 8.5 px
   FWHM on one axis but **1.4–1.7 px on the other, i.e. below the 2 px Nyquist floor**. In ptychographic
   terms the per-pattern field of view is λR/px = 864 nm, giving oversampling of **13.5× on one axis and
-  only 1.6× ((202)) / 2.2× ((131)) on the other**. Consequences, all concrete: rung 2 needs a
-  probe-support constraint on the tight axis; the oversampled axis can be **binned 4–6× for free**
-  (a real dent in the 300 GB problem); and next beamtime should move the detector back or prefer more
+  only 1.6× ((202)) / 2.2× ((131)) on the other**. Consequences: rung 2 needs a
+  probe-support constraint on the tight axis; the oversampled axis can be **binned 4–6× without
+  loss** (cutting the ~300 GB data volume); and next beamtime should move the detector back or prefer more
   symmetric reflections. This is the Fisher/information-per-photon theme applied to the detector
   distance rather than the rocking angle.
 - **The illumination has two length scales, and the probe size is confirmed at ~158 nm.** The
@@ -176,30 +174,28 @@ measures lengths David is still waiting on from the beamline.
 - **The discriminating experiment is already collected.** If the 50 nm scale is sample-driven (a
   coherently diffracting mosaic block, which would make it a *science* observable), it must change on
   the Au standard with its large EBSD-known domains, and across the 6 nm / 40 nm films with their very
-  different domain scales. If it is probe-driven it will not move. That is what turns the Au request
-  from "solver bring-up" into a physics test — and it is a Globus pull away.
+  different domain scales. If it is probe-driven it will not move. So the Au data serve as a
+  physics test as well as solver bring-up, and need only a Globus pull.
 - ~~Earlier claim, now retracted:~~ an initial single-Gaussian fit reported "the coherently diffracting
   region is 2–5× smaller than the illuminated footprint." That gap was entirely an artefact of the
   wrong model; with two components one of them *is* the footprint. `speckle_geometry.py --selftest`
   now reproduces this exact failure mode on synthetic data and asserts against it.
 
-So the group's "step 0" asks — intensity maps, COM maps, adjacent-pattern correlation, anisotropy — are
-delivered on real data with a tested pipeline, they show real structure, and the correlation idea has
-already been upgraded once (noise-corrected r) with a quantitative payoff.
+This covers the group's "step 0" asks — intensity maps, COM maps, adjacent-pattern correlation,
+anisotropy — on real data with a tested pipeline, plus the noise-corrected correlation.
 
 ## 4. Directions (one staged ladder, not competing tracks)
 
-Everything lives on one pipeline; each rung de-risks the next and serves both the "correlation-map" camp
-and the "reconstruction" camp:
+Everything lives on one pipeline, and each rung de-risks the next:
 
 0. **Reconstruction-free maps** — intensity, COM, virtual-aperture (satellites), speckle-correlation
    (raw **and shot-noise-corrected**) + decay-length **anisotropy**. *Done for (202)/(131).*
    Pedigree: Chahine K-map/XSOCS, Kriegner
    (twin mapping in Bi₂Te₃ — same ABC/ACB degeneracy, EBSD-validated), Morgan **Ptychographic X-ray
    Speckle Tracking** (the exact precedent for "correlate adjacent patterns → map"; reconstruction-free,
-   open code, and **no Bragg implementation exists yet** — a publishable methods gap).
-1. **COM → tilt/strain decomposition** — *EXECUTED (`gu_proxy.py` → `gu_proxy.png`), and the original
-   premise is revised by the data.* The plan was Shack-Hartmann-style integration to a smooth G·u map;
+   open code, and **no Bragg implementation exists yet** — a methods gap).
+1. **COM → tilt/strain decomposition** — *Done (`gu_proxy.py` → `gu_proxy.png`); the data revise the
+   original premise.* The plan was Shack-Hartmann-style integration to a smooth G·u map;
    the measurement says that shortcut mostly doesn't exist here: Helmholtz-decomposing the domain-scale
    COM field at the most-favorable detector→sample frame, **at most 44% ((202)) / 34% ((131)) of the
    field power is compatible with *any* scalar strain-gradient surface — the majority is rotational**,
@@ -223,64 +219,59 @@ and the "reconstruction" camp:
    is consortium-gated 3D), so the shortest path is the small, well-documented geometry layer in front of
    pty-chi/LSQML. Precedents: Hruszkewycz 2012/2014, and **Burdet 2017 did BPP on a Nb film** — nearest
    published system; expect a refinement stack (positions, ramps, peak centering).
-3. **Your differentiated bets** (see §5).
+3. **PtychoPINN-Bragg and information-optimal acquisition** (see §5, Plan B).
 4. **Multi-peak u(r) fusion** — next beamtime only (Kandel 2023 multi-peak BPP; needs same-region
    fiducial registration).
 
-## 5. Two executable plans for the meeting
+## 5. Plans
 
-### Plan A — "Reconstruction-free twin & strain mapping on the shared data" (LEAD; ready now)
+### Plan A — Reconstruction-free twin & strain mapping on the shared data
 - **Deliverables exist:** `twin_comparison.png` (2×4: intensity, COM, raw corr, **noise-corrected
-  corr** — the corrected pair is the money panel), `gu_proxy.png` (rung-1 Helmholtz/twist
-  decomposition — the second meeting figure), `speckle_geometry.png` (probe/coherence + detector
-  sampling — the third), `quicklook.py`, `speckle_geometry.py` (both with selftests), `data/*_maps.npz`.
-- **The story to tell:** the PI's "4 numbers per image" idea realized on real data — *and improved
-  twice*: (1) the raw correlation contrast between twins is fully explained by photon statistics
+  corr**), `gu_proxy.png` (rung-1 Helmholtz/twist decomposition), `speckle_geometry.png`
+  (probe/coherence + detector sampling), `quicklook.py`, `speckle_geometry.py` (both with selftests), `data/*_maps.npz`.
+- **Summary:** the PI's "4 numbers per image" idea on real data, extended twice: (1) the raw correlation contrast between twins is fully explained by photon statistics
   (corrected r identical at ~0.98–0.99), so the correlation map is a photon-budget-aware structural
   probe; (2) the COM field, decomposed, is **twist-dominated** (≤44%/34% strain-gradient-compatible)
   — a real-space twist-domain map that echoes David's ensemble twist mosaicity and *quantifies why*
-  phasing + 3-angle scans are necessary. A methods gap (Bragg speckle tracking) is identified for the
-  paper trail.
-- **Optional polish if time allows:** quick NMF domain segmentation; per-frame speckle-orientation
+  phasing + 3-angle scans are necessary. It also identifies a methods gap (Bragg speckle tracking).
+- **Optional extensions:** quick NMF domain segmentation; per-frame speckle-orientation
   (structure-tensor) map — the peak's internal streak texture (visible in David's notebook detector
   images) carries local fault-plane orientation, and this is the PI's original "rotate so the lines
-  are parallel" idea, which no beamline tool provides. **Do NOT pitch virtual-aperture maps as new** —
-  David's Data Explorer GUI already does ROI-box darkfield/satellite maps live at the beamline (his
-  satellite maps came from exactly that); a scripted version is reproducibility plumbing, not a
-  capability.
-- **Say clearly:** grid orientation inferred (71×41, validated by coherence + no-serpentine checks);
+  are parallel" idea, which no beamline tool provides. Virtual-aperture maps are not new: David's Data
+  Explorer GUI already makes ROI-box darkfield/satellite maps live at the beamline (his satellite
+  maps came from it), so a scripted version adds reproducibility, not capability.
+- **Caveats:** grid orientation inferred (71×41, validated by coherence + no-serpentine checks);
   pitch convention pending David (likely isotropic 20 nm — macro evidence); COM = mixed tilt+strain,
   not clean strain; map resolution is probe-limited ~150 nm and 1/sinθ-elongated along x;
   (202)/(131) are different regions → statistical comparison only.
 
-### Plan B — "PtychoPINN-Bragg + information-optimal acquisition" (SEED in parallel; your niche)
-- **Bet B1 — amortized Bragg inversion.** PtychoPINN already has what every existing DL-Bragg effort
+### Plan B — PtychoPINN-Bragg + information-optimal acquisition
+- **B1 — amortized Bragg inversion.** PtychoPINN already has what every existing DL-Bragg effort
   (AutoPhaseNN, NanobeamNN, DONUT) lacks: the **overlap constraint + Poisson loss**. Repo audit says the
   forced changes are modest (effective anisotropic probe via existing custom-probe ingestion; `nongrid`
-  coords already supported; complex object already; `ci_intensity_v2` Poisson profile). **Friday seed
-  built:** `photon_budget.png` — radial counts/pixel of the real scans (10 ph/px by r≈50 px, 1 ph/px by
+  coords already supported; complex object already; `ci_intensity_v2` Poisson profile). **Seed
+  figure:** `photon_budget.png` — radial counts/pixel of the real scans (10 ph/px by r≈50 px, 1 ph/px by
   r≈105 px; (131) an octave lower) — the count target any forward simulation / Poisson loss must hit.
   The `quicklook.py` selftest already contains the twin-domain forward model to extend.
-- **Bet B2 — Fisher-information acquisition design.** Answers meeting-1's literal "where on the rocking
+- **B2 — Fisher-information acquisition design.** Answers meeting-1's literal "where on the rocking
   curve?": for a Gaussian rocking curve, information about strain is **zero at the peak and maximized at
-  Δ\* = σ√2 ≈ 1.41σ off-peak**. **Friday seed built:** `fisher_rocking.png` (with the σ√2 optimum
-  marked; caption holds step-size/overlap fixed). The noise-corrected-correlation result in §3 is the
-  live demonstration that photon-statistics accounting changes conclusions on this very dataset — and
-  the **detector-sampling result** (§3, oversampling 13.5× vs 1.6×) is the same argument applied to a
-  second acquisition knob, with an immediately actionable recommendation. Together they make the
+  Δ\* = σ√2 ≈ 1.41σ off-peak**. **Seed figure:** `fisher_rocking.png` (with the σ√2 optimum
+  marked; caption holds step-size/overlap fixed). The noise-corrected correlation in §3 shows
+  photon-statistics accounting changing conclusions on this dataset, and the **detector-sampling
+  result** (§3, oversampling 13.5× vs 1.6×) is the same argument applied to a second acquisition
+  knob, with a direct recommendation. Together they make the
   information-allocation case concrete: rocking offset, detector distance, and pixel binning are all
   choices about where the photons' information goes.
-- **Frame ANL's ML group (Cherukara/Zhou/Holt — DONUT/NanobeamNN) as collaborators, not competitors** —
-  the collaboration already routes through 26-ID; your differentiator is phase retrieval + overlap +
-  Poisson, which their per-pattern geometric regression doesn't do.
+- **Relation to ANL's ML work (Cherukara/Zhou/Holt — DONUT/NanobeamNN):** complementary, and already
+  routed through 26-ID. Their methods are per-pattern geometric regression; PtychoPINN adds phase
+  retrieval with the overlap constraint and a Poisson loss.
 
-**Recommendation:** lead with A (guaranteed, real-data, serves the group's stated ask), seed B in
-parallel (keeps your contribution distinct, needs no data). Reconstruction (§4 rung 2) is next
-sprint — no longer hard-blocked: nominal positions are constructible now (§3), David's Data Explorer
-rows make them exact, and joint position refinement mops up the rest. Say that at the meeting — it
-converts "we're waiting on you" into "we're ready to start."
+**Recommendation:** A first (real data, the group's stated ask), B in parallel (needs no new data).
+Reconstruction (§4 rung 2) follows and is no longer hard-blocked: nominal positions can be built from
+the scan sheet (§3), David's Data Explorer rows make them exact, and joint position refinement
+absorbs the rest.
 
-## 6. Send David tonight (zero cost, unblocks Friday)
+## 6. Questions for David
 1. Per-frame **positions**: master file, **or just a screenshot of the Diffraction User Data Explorer
    rows 308–313** (the M1/M2 MIN/MAX/NP columns) — that plus the confirmed sinθ convention gives us
    exact position grids without any file transfer. (The shared exports have an empty `/entry/scan`.)
@@ -290,27 +281,26 @@ converts "we're waiting on you" into "we're ready to start."
    75 µm px). The R column decodes as nominal+~22.8 mm (423.1↔"400 mm", 522.5↔"500 mm"), so 308–319
    ran at the **nominal 500 mm** setting — confirm whether the true sample–detector distance is 500 or
    the 522.5 readback (4.5% on all q/pm calibrations).
-4. **Energy metadata is stale:** logged angles index both peaks at exactly 10.00 keV; `DCM Energy`
-   reads 12.5 keV — worth fixing in the master file so nobody downstream trips on it.
-4b. **Probe structure — the speckle says your ~150 nm spot is right, and adds something.** The
-   autocorrelation resolves a 157/159 nm envelope (matching your number, and matching the measured
-   decorrelation length) *plus* ~50 nm structure inside it (§3). Useful to know: which zone plate and
+4. **Energy metadata is stale:** logged angles index both peaks near 10 keV (±0.5 keV until the beam
+   centre is known, §3); `DCM Energy` reads 12.5 keV and should be corrected in the master file.
+4b. **Probe structure:** the speckle autocorrelation resolves a 157/159 nm envelope (matching the
+   ~150 nm metadata spot and the measured decorrelation length) *plus* ~50 nm structure inside it (§3). Useful to know: which zone plate and
    defocus ZP2 was at for 308–319, whether it has a central stop / order-sorting aperture (which would
    produce exactly this ring structure), and the beamline's transverse-coherence estimate (slit and
    source sizes). That settles probe-structure versus partial coherence, and either way tells us
    how many probe modes rung 2 should solve for.
 5. Status of 308/312 + a Globus path to watch.
-6. **One gold-standard file for rung-2 solver bring-up** (honors meeting 2's "start with the Au
+6. **One gold-standard file for rung-2 solver bring-up** (per meeting 2's "start with the Au
    standard" — EBSD-known domains, e.g. Au 020 step scans 247–249 — and meeting 1's "start from the
    111 with the working recon": a specular 111 ptycho scan, e.g. 102/104, serves the same role).
-   The NbN 10 nm files David shared were the right start for the reconstruction-free analysis;
-   validation targets with known structure are what the *reconstruction* step wants first.
+   The NbN 10 nm files suit the reconstruction-free analysis; the *reconstruction* step needs
+   validation targets with known structure first.
 
 **Globus pull priorities** (from the full scan-sheet inventory; sizes are per-scan ~0.7 GB step /
 smaller fly):
 1. Au standard: 247–249 (+ Au rocking maps 236–243) — solver bring-up.
 2. **291–304** — same-region **two-peak × 7-angle** rocking maps, 10 nm film → Holt tilt/strain
-   separation + first cross-peak registration (the "impossible on this dataset" fix).
+   separation + first cross-peak registration.
 3. **316–319** — specular (111) ptycho, *sharing regions with (131) scans 312–315* → per-pixel
    twin-selective vs twin-insensitive two-channel analysis; 314/315 for (131) statistics.
 4. 326–363 (6 nm) and 369–384 (40 nm) two-peak rocking stacks → thickness-series twist/strain story.
@@ -337,7 +327,7 @@ smaller fly):
   stops short of phase retrieval), PtychoPINN (Sci Rep 2023).
 - **Materials:** Chang SuST 2021 (dense rotational twins in δ-NbN(111)), Wright PRMat 2021 (growth-mode
   control), Yan Nature 2018 + Kim Commun Mater 2021 (why: qubits/SNSPDs).
-- **Positioning (novelty hook):** Hruszkewycz's corpus contains every ingredient — nanofocused BPP on
+- **Novelty:** Hruszkewycz's corpus contains every ingredient — nanofocused BPP on
   thin films, phase→displacement, defect/stacking-fault phasing, angular-registration recovery,
-  multi-peak vector imaging — but **no NbN or superconducting-film paper**. This project would be his
-  program's first entry into superconducting quantum-device materials; use as the motivation hook.
+  multi-peak vector imaging — but **no NbN or superconducting-film paper**; this would be the program's
+  first application to superconducting quantum-device materials.
