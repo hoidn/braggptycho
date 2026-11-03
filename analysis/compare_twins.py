@@ -55,7 +55,7 @@ def main(a="data/scan_309_100309_maps.npz", b="data/scan_313_100313_maps.npz"):
         "right pair: identical corrected corr => raw contrast is pure photon statistics",
         fontsize=11)
     fig.tight_layout(rect=(0, 0, 1, 0.92))
-    out = "twin_comparison.png"
+    out = "figures/twin_comparison.png"
     fig.savefig(out, dpi=140)
     print("wrote", out)
     for Z, tag in [(A, "202"), (B, "131")]:

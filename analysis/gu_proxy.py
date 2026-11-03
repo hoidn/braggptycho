@@ -126,8 +126,8 @@ def main():
         "separation + phasing over COM shortcuts). pm scale assumes Eiger2 75 um, 10 keV, 20 nm steps, "
         "R = 522.5 mm readback (= 500 mm nominal setting: 4.5% scale ambiguity, pending David)", fontsize=9)
     fig.tight_layout(rect=(0, 0, 1, 0.92))
-    fig.savefig("gu_proxy.png", dpi=140)
-    print("wrote gu_proxy.png")
+    fig.savefig("figures/gu_proxy.png", dpi=140)
+    print("wrote figures/gu_proxy.png")
 
 
 if __name__ == "__main__":

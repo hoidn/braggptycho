@@ -37,7 +37,7 @@ Precedent: X-ray speckle tracking (Morgan JAC 2020) is established in
 TRANSMISSION; no Bragg implementation exists. The gap is real, but this dataset
 cannot fill it.
 
-Usage: python speckle_tracking.py [--selftest]
+Usage: python analysis/speckle_tracking.py [--selftest]
 """
 import argparse
 
@@ -159,8 +159,8 @@ def main():
         "distance. Estimator itself is sound (selftest recovers imposed shifts to 0.011 px). Move the "
         "detector back -> the measurement works.", fontsize=9)
     fig.tight_layout(rect=(0, 0, 1, 0.87))
-    fig.savefig("speckle_tracking.png", dpi=140)
-    print("wrote speckle_tracking.png")
+    fig.savefig("figures/speckle_tracking.png", dpi=140)
+    print("wrote figures/speckle_tracking.png")
 
 
 def _speckle(rng, n, grain_px):

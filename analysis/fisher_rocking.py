@@ -37,5 +37,5 @@ ax.set_title("Dose-limited acquisition: measure OFF the rocking-curve peak\n"
              fontsize=11)
 ax.legend(loc="upper left", fontsize=9)
 fig.tight_layout()
-fig.savefig("fisher_rocking.png", dpi=140)
-print("wrote fisher_rocking.png; argmax at", round(float(abs(th[np.argmax(F)])), 3), "sigma")
+fig.savefig("figures/fisher_rocking.png", dpi=140)
+print("wrote figures/fisher_rocking.png; argmax at", round(float(abs(th[np.argmax(F)])), 3), "sigma")

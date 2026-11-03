@@ -22,8 +22,8 @@ other" asks for. Reading it:
     independent between exposures), which is why the k >= 1 surfaces are clean
     and give a noise-free view of the speckle shape.
 
-Usage: python xcorr_2d.py [--selftest]
-       python -c "import xcorr_2d; xcorr_2d.scan_space_figure()"   # scan-offset slice
+Usage: python analysis/xcorr_2d.py [--selftest | --scan-space]
+       (--scan-space renders the scan-offset slice, xcorr_scanspace.png)
 """
 import argparse
 
@@ -162,8 +162,8 @@ def main():
         "linear in k) while a tail-driven artefact halves when the window tightens (the slow axis). "
         "Both are in tension with the COM field and are NOT yet physics.", fontsize=9)
     fig.tight_layout(rect=(0, 0, 1, 0.86), h_pad=3.0)
-    fig.savefig("xcorr_2d.png", dpi=140)
-    print("wrote xcorr_2d.png")
+    fig.savefig("figures/xcorr_2d.png", dpi=140)
+    print("wrote figures/xcorr_2d.png")
 
 
 # --- the OTHER 2D slice: correlation vs SCAN offset, at zero detector lag -------------
@@ -223,8 +223,8 @@ def scan_space_figure():
                  "Decorrelation anisotropy appears directly as an ellipse in real space "
                  "(elongated along fast = the 1/sin(theta)-stretched footprint direction).", fontsize=10)
     fig.tight_layout(rect=(0, 0.02, 1, 0.86))
-    fig.savefig("xcorr_scanspace.png", dpi=140)
-    print("wrote xcorr_scanspace.png")
+    fig.savefig("figures/xcorr_scanspace.png", dpi=140)
+    print("wrote figures/xcorr_scanspace.png")
 
 
 def selftest():
@@ -280,5 +280,11 @@ def selftest():
 if __name__ == "__main__":
     p = argparse.ArgumentParser()
     p.add_argument("--selftest", action="store_true")
+    p.add_argument("--scan-space", action="store_true", help="render xcorr_scanspace.png instead")
     a = p.parse_args()
-    selftest() if a.selftest else main()
+    if a.selftest:
+        selftest()
+    elif a.scan_space:
+        scan_space_figure()
+    else:
+        main()

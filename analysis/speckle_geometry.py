@@ -386,8 +386,8 @@ def main():
         "Axes are not assigned to (probe / footprint / thickness): asymmetric reflections + tilted "
         "Ewald slice mix them - that needs the rung-2 geometry Jacobian.", fontsize=8.5)
     fig.tight_layout(rect=(0, 0, 1, 0.88))
-    fig.savefig("speckle_geometry.png", dpi=140)
-    print("wrote speckle_geometry.png")
+    fig.savefig("figures/speckle_geometry.png", dpi=140)
+    print("wrote figures/speckle_geometry.png")
 
 
 def selftest():

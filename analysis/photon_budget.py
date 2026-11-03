@@ -38,5 +38,5 @@ ax.set_title("Photon budget of the shared 10 nm scans: speckle tails at ones-to-
              fontsize=11)
 ax.legend(fontsize=9)
 fig.tight_layout()
-fig.savefig("photon_budget.png", dpi=140)
-print("wrote photon_budget.png")
+fig.savefig("figures/photon_budget.png", dpi=140)
+print("wrote figures/photon_budget.png")

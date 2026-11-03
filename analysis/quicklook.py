@@ -10,8 +10,8 @@ Output: <prefix>_maps.npz + <prefix>_quicklook.png with
         - adjacent-pattern Pearson correlation maps (fast/slow axis)
         - correlation decay vs step offset along both axes ("4 numbers" idea)
 
-Usage:  python quicklook.py scan_308_100308.h5 [--roi-half 64] [--out prefix]
-        python quicklook.py --selftest
+Usage:  python analysis/quicklook.py scan_308_100308.h5 [--roi-half 64] [--out prefix]
+        python analysis/quicklook.py --selftest
 """
 import argparse
 import sys
@@ -243,7 +243,7 @@ def run(path, roi_half=64, out=None, max_offset=8, grid=None):
     return r, pm
 
 
-def selftest(path="synthetic_scan.h5"):
+def selftest(path="data/synthetic_scan.h5"):
     """Generate a synthetic twin-domain Bragg scan in David's h5 layout and verify."""
     rng = np.random.default_rng(0)
     npx, pix_nm, probe_fwhm_nm, step_nm, grid = 512, 10.0, 150.0, 30.0, 41

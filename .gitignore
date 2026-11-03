@@ -2,4 +2,4 @@
 __pycache__/
 screenshots/
 links.local.md
-data/*.h5
+data/scan_*.h5
